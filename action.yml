@@ -9,20 +9,23 @@ inputs:
     description: Test world folder id / title
     required: true
   foundry_username:
-    description: Foundry account username (pass from secrets)
-    required: true
+    description: Foundry account username (from secrets). Optional — without it the container cannot download/license Foundry, but earlier steps still run.
+    required: false
+    default: ''
   foundry_password:
-    description: Foundry account password (pass from secrets)
-    required: true
+    description: Foundry account password (from secrets). Optional — see foundry_username.
+    required: false
+    default: ''
   foundry_admin_key:
-    description: Foundry admin password (pass from secrets)
-    required: true
+    description: Foundry admin password (from secrets). Optional — see foundry_username.
+    required: false
+    default: ''
   pre_build_script:
     description: Shell command before Foundry boot; empty to skip
     required: false
     default: ''
   build_script:
-    description: Shell command to build module; empty to skip
+    description: Shell command to build from; if none we drop whole dir into foundrydata/Data/xxx/<id-from.json>.
     required: false
     default: ''
   test_command:
@@ -34,11 +37,11 @@ inputs:
     required: false
     default: ''
   quench_tests_path:
-    description: Local path to Quench test package (e.g. ./quench). TODO: git repo URL
+    description: "Local path to a package with system.json or module.json (e.g. ./quench). Auto-routed to Data/systems or Data/modules by manifest type. TODO git repo URL support."
     required: false
     default: ''
   quench_build_command:
-    description: Build command for quench_tests_path; default npm --prefix <path> run build
+    description: Build command for quench_tests_path. Empty = no build, drop the manifest's directory as-is.
     required: false
     default: ''
   test_module_ids:
@@ -160,6 +163,19 @@ runs:
       run: |
         mkdir -p foundrydata .foundry-docker/secret .foundry-docker/container_cache
         sudo chown -R 1000:1000 foundrydata .foundry-docker/secret .foundry-docker/container_cache
+
+    - name: Foundry keys set from secrets?
+      shell: bash
+      env:
+        FOUNDRY_USERNAME: ${{ inputs.foundry_username }}
+        FOUNDRY_PASSWORD: ${{ inputs.foundry_password }}
+        FOUNDRY_ADMIN_KEY: ${{ inputs.foundry_admin_key }}
+      run: |
+        if [ -z "$FOUNDRY_USERNAME" ] || [ -z "$FOUNDRY_PASSWORD" ] || [ -z "$FOUNDRY_ADMIN_KEY" ]; then
+          echo "::warning::FOUNDRY_USERNAME / FOUNDRY_PASSWORD / FOUNDRY_ADMIN_KEY not set. Earlier steps ran, but the Foundry container cannot download/license and later E2E steps will likely fail. Set repo secrets to enable a full run."
+        else
+          echo "Foundry credentials present."
+        fi
 
     - name: Start Foundry container
       shell: bash

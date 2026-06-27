@@ -1,5 +1,13 @@
 /**
- * Build local Quench test package and ensure output is in foundrydata/Data/modules.
+ * Install a local Quench test package (or any module/system) into foundrydata/Data.
+ *
+ * Detects the manifest type and drops into the right place:
+ *   - system.json -> foundrydata/Data/systems/<id>
+ *   - module.json -> foundrydata/Data/modules/<id>
+ *
+ * If a build command is provided (FOUNDRY_QUENCH_BUILD_COMMAND) it runs first and
+ * we prefer the built output; otherwise the manifest's directory is dropped as-is.
+ *
  * TODO: support quench_tests_path as a git repository URL (clone + build).
  */
 import { execFileSync } from 'node:child_process'
@@ -12,16 +20,33 @@ function writeQuenchFvttConfig(quenchRoot, userDataPath, baseURL) {
   fs.writeFileSync(path.join(quenchRoot, 'fvtt.config.js'), out, 'utf8')
 }
 
-function findBuiltModuleDir(quenchRoot, moduleId, userDataPath) {
-  const inUserData = path.join(userDataPath, 'Data', 'modules', moduleId)
-  if (fs.existsSync(path.join(inUserData, 'module.json'))) {
-    return inUserData
-  }
-  const buildDir = path.join(quenchRoot, 'build')
-  if (fs.existsSync(path.join(buildDir, 'module.json'))) {
-    return buildDir
+/** Manifest can live at <root>/module/ (webpack source layout) or <root>/ directly. */
+function findManifest(quenchRoot) {
+  const candidates = [
+    { dir: path.join(quenchRoot, 'module'), file: 'system.json', dataSubdir: 'systems' },
+    { dir: path.join(quenchRoot, 'module'), file: 'module.json', dataSubdir: 'modules' },
+    { dir: quenchRoot, file: 'system.json', dataSubdir: 'systems' },
+    { dir: quenchRoot, file: 'module.json', dataSubdir: 'modules' }
+  ]
+  for (const c of candidates) {
+    const manifestPath = path.join(c.dir, c.file)
+    if (fs.existsSync(manifestPath)) {
+      const id = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).id
+      return { ...c, manifestPath, id }
+    }
   }
   return null
+}
+
+/** Prefer built output (in userdata or build/) over raw source. */
+function findBuiltDir({ quenchRoot, sourceDir, file, dataSubdir, id, userDataPath }) {
+  const inUserData = path.join(userDataPath, 'Data', dataSubdir, id)
+  if (fs.existsSync(path.join(inUserData, file))) return inUserData
+
+  const buildDir = path.join(quenchRoot, 'build')
+  if (fs.existsSync(path.join(buildDir, file))) return buildDir
+
+  return sourceDir
 }
 
 async function main() {
@@ -36,11 +61,15 @@ async function main() {
     throw new Error(`quench_tests_path not found: ${quenchRoot}`)
   }
 
-  const manifestPath = path.join(quenchRoot, 'module', 'module.json')
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Missing ${manifestPath}`)
+  const manifest = findManifest(quenchRoot)
+  if (!manifest) {
+    throw new Error(
+      `No system.json or module.json under ${quenchRoot} (checked ./module/ and ./)`
+    )
   }
-  const moduleId = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).id
+  const { file, dataSubdir, id } = manifest
+  const sourceDir = path.dirname(manifest.manifestPath)
+  console.log(`Found ${file} (id=${id}) -> Data/${dataSubdir}/${id}`)
 
   const developmentOptions = await loadModuleFvttConfig()
   const userDataPath = resolveUserDataPath(developmentOptions)
@@ -49,32 +78,35 @@ async function main() {
   const baseURL = developmentOptions.baseURL ?? 'http://localhost:30000'
   writeQuenchFvttConfig(quenchRoot, userDataPath, baseURL)
 
-  const buildCmd =
-    process.env.FOUNDRY_QUENCH_BUILD_COMMAND?.trim() ||
-    `npm --prefix "${quenchRoot}" run build`
-
-  console.log('Building Quench tests:', buildCmd)
-  execFileSync('bash', ['-lc', buildCmd], {
-    cwd: MODULE_ROOT,
-    stdio: 'inherit',
-    env: { ...process.env, FOUNDRY_MODULE_ROOT: MODULE_ROOT }
-  })
-
-  const builtDir = findBuiltModuleDir(quenchRoot, moduleId, userDataPath)
-  if (!builtDir) {
-    throw new Error(
-      `Quench build did not produce module ${moduleId} under ${userDataPath}/Data/modules or ${quenchRoot}/build`
-    )
+  const buildCmd = process.env.FOUNDRY_QUENCH_BUILD_COMMAND?.trim()
+  if (buildCmd) {
+    console.log('Building Quench tests:', buildCmd)
+    execFileSync('bash', ['-lc', buildCmd], {
+      cwd: MODULE_ROOT,
+      stdio: 'inherit',
+      env: { ...process.env, FOUNDRY_MODULE_ROOT: MODULE_ROOT }
+    })
+  } else {
+    console.log('No build command — dropping directory as-is')
   }
 
-  const destDir = path.join(userDataPath, 'Data', 'modules', moduleId)
+  const builtDir = findBuiltDir({
+    quenchRoot,
+    sourceDir,
+    file,
+    dataSubdir,
+    id,
+    userDataPath
+  })
+
+  const destDir = path.join(userDataPath, 'Data', dataSubdir, id)
   if (path.resolve(builtDir) !== path.resolve(destDir)) {
     if (fs.existsSync(destDir)) fs.rmSync(destDir, { recursive: true, force: true })
     fs.mkdirSync(path.dirname(destDir), { recursive: true })
     fs.cpSync(builtDir, destDir, { recursive: true })
-    console.log('Copied Quench tests module to', destDir)
+    console.log('Installed', id, 'to', destDir)
   } else {
-    console.log('Quench tests module already at', destDir)
+    console.log(id, 'already at', destDir)
   }
 }
 
