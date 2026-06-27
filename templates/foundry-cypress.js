@@ -63,8 +63,12 @@ export function defineFoundryConfig (overrides = {}) {
       }
     },
     env: {
+      ...envOverrides,
       ADMIN_PASSWORD: resolveAdminPassword(),
-      ...envOverrides
+      FOUNDRY_WORLD:
+        process.env.FOUNDRY_WORLD ||
+        envOverrides.FOUNDRY_WORLD ||
+        ''
     },
     viewportWidth: restOverrides.viewportWidth ?? 1366,
     viewportHeight: restOverrides.viewportHeight ?? 768

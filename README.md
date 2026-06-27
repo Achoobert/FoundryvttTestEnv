@@ -1,15 +1,14 @@
 # FoundryvttTestEnv
 
-Composite GitHub Action: Foundry Docker (felddy), Quench, Cypress E2E against **your module repo** workspace (`$GITHUB_WORKSPACE`).
+Composite GitHub Action: Foundry Docker (felddy), Quench, **action-owned Cypress** E2E against **your repo** workspace (`$GITHUB_WORKSPACE`).
 
 ```yaml
-- uses: Achoobert/FoundryvttTestEnv@0.0.1
+- uses: Achoobert/FoundryvttTestEnv@0.0.4
   with:
     foundry_version: '14.364'
     foundry_world: my-module-test
     quench_tests_path: ./quench
     quench_build_command: npm run quench:build
-    test_command: npm run test:ci
     foundry_username: ${{ secrets.FOUNDRY_USERNAME }}
     foundry_password: ${{ secrets.FOUNDRY_PASSWORD }}
     foundry_admin_key: ${{ secrets.FOUNDRY_ADMIN_KEY }}
@@ -21,9 +20,18 @@ Composite actions use **inputs only** — pass Foundry credentials as `foundry_u
 
 ### Required in your job before calling the action
 
-- `npm ci` (and any build that copies your **main module** into `foundrydata/Data/modules/<id>`).
+- `npm ci` (and any build that copies your **main module/system** into `foundrydata/Data/...`).
 - Repo secrets: `FOUNDRY_USERNAME`, `FOUNDRY_PASSWORD`, `FOUNDRY_ADMIN_KEY`.
 - `permissions: actions: write` on the workflow (for Foundry distribution cache).
+
+### Cypress (in the action)
+
+Smoke + Quench runners live in this repo (`cypress/e2e/`, `cypress/support/`). The action runs `cypress run` from `github.action_path` with `FOUNDRY_MODULE_ROOT` = your workspace. You do **not** need `cypress`, `test_command`, or `cypress_install_command` in the consumer unless you override.
+
+Optional escape hatches:
+
+- `test_command` — custom Cypress command (runs in workspace).
+- `cypress_install_command` — custom install step.
 
 ### Optional `fvtt.config.example.js` at repo root
 
@@ -36,29 +44,28 @@ If missing, the action synthesizes config from inputs (`foundry_world`, derived 
 
 ### `quench_tests_path`
 
-Local directory with `module/module.json` and a webpack (or other) build. The action:
+Local directory with Quench **batches only** (`module/src/quench/`, etc.) and a webpack (or other) build. The action:
 
 1. Writes `fvtt.config.js` in that folder with `userDataPath` pointing at workspace `foundrydata/`.
-2. Copies `templates/foundry-cypress.js` to `<path>/foundry-cypress.js` (Chrome swiftshader WebGL for headless CI).
-3. Runs `quench_build_command` or `npm --prefix <path> run build`.
-4. Ensures output lives under `foundrydata/Data/modules/<tests-module-id>`.
-
-Consumer `cypress.config.ci.js` should `import { defineFoundryConfig } from './foundry-cypress.js'` and extend it.
+2. Runs `quench_build_command` or `npm --prefix <path> run build`.
+3. Ensures output lives under `foundrydata/Data/modules/<tests-module-id>`.
 
 **TODO:** support `quench_tests_path` as a git repository URL (clone + build).
 
-### Main module
+### Main module / system
 
-The action does **not** build your primary module. Use `build_script` / pre-steps so `foundrydata/Data/modules/<your-module-id>` exists before Cypress runs.
+The action does **not** build your primary package. Use `build_script` / pre-steps so `foundrydata/Data/modules/<id>` or `foundrydata/Data/systems/<id>` exists before Cypress runs.
 
 ### `test_system_manifest_url: local`
 
-When testing a **game system** from the same repo (not a release zip), stage `foundrydata/Data/systems/deltagreen/` in `build_script`, then pass `test_system_manifest_url: local` so install-quench skips downloading the default Delta Green release manifest.
+When testing a **game system** from the same repo (not a release zip), stage `foundrydata/Data/systems/<id>/` in `build_script`, then pass `test_system_manifest_url: local` so install-quench skips downloading the default release manifest.
 
 ## Layout
 
 - `action.yml` — composite steps
-- `ci_scripts/` — write config, install Quench, wait for Foundry
+- `cypress/` — shared E2E specs and support (smoke, Quench runner)
+- `cypress.config.ci.js` — CI config (Chrome swiftshader WebGL for headless)
+- `ci_scripts/` — write config, install Quench, run Cypress, wait for Foundry
 - `docker/docker-compose.yml` — staged to `.foundry-docker/` in the consumer workspace
 
 ## Reference

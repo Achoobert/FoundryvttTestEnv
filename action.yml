@@ -29,11 +29,11 @@ inputs:
     required: false
     default: ''
   test_command:
-    description: Cypress command
+    description: Cypress command; empty runs action-owned Cypress (smoke + Quench specs)
     required: false
-    default: npm run test:ci
+    default: ''
   cypress_install_command:
-    description: Install Cypress binary; empty to skip
+    description: Install Cypress binary; empty runs npm ci + cypress install in the action package
     required: false
     default: ''
   quench_tests_path:
@@ -48,7 +48,7 @@ inputs:
     description: Comma-separated module ids to enable; empty = derive quench + module.json ids
     required: false
     default: ''
-  test_system_manifest_url:
+  test_system_manifest_url: # if passed a system, don't install this, and use THAT system to create the world
     description: Game system manifest URL for test world
     required: false
     default: https://github.com/deltagreen-foundryvtt/delta-green-foundry-vtt-system/releases/download/v1.7.0/system.json
@@ -70,7 +70,7 @@ runs:
   steps:
     - name: Install action dependencies
       shell: bash
-      run: npm install --omit=dev
+      run: npm ci
       working-directory: ${{ github.action_path }}
 
     - name: Stage Docker compose
@@ -142,6 +142,7 @@ runs:
       shell: bash
       env:
         FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_ACTION_PATH: ${{ github.action_path }}
         FOUNDRY_CORE_VERSION: ${{ inputs.foundry_version }}
       run: |
         export NODE_PATH="${{ github.action_path }}/node_modules"
@@ -215,6 +216,7 @@ runs:
       shell: bash
       env:
         FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_ACTION_PATH: ${{ github.action_path }}
         FOUNDRY_CORE_VERSION: ${{ inputs.foundry_version }}
       run: |
         export NODE_PATH="${{ github.action_path }}/node_modules"
@@ -251,20 +253,35 @@ runs:
         node "${{ github.action_path }}/ci_scripts/wait-for-foundry.js"
 
     - name: Install Cypress binary
-      if: inputs.cypress_install_command != ''
       shell: bash
-      run: ${{ inputs.cypress_install_command }}
+      working-directory: ${{ github.action_path }}
+      run: |
+        if [ -n "${{ inputs.cypress_install_command }}" ]; then
+          bash -lc "${{ inputs.cypress_install_command }}"
+        else
+          npx cypress install
+        fi
 
     - name: Install Chrome
       uses: browser-actions/setup-chrome@v2
 
     - name: Run Cypress E2E
       shell: bash
+      working-directory: ${{ github.action_path }}
       env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_WORLD: ${{ inputs.foundry_world }}
         FOUNDRY_ADMIN_KEY: ${{ inputs.foundry_admin_key }}
         FOUNDRY_PASSWORD: ${{ inputs.foundry_password }}
         ADMIN_PASSWORD: ${{ inputs.foundry_admin_key }}
-      run: ${{ inputs.test_command }}
+        TEST_COMMAND: ${{ inputs.test_command }}
+      run: |
+        if [ -n "$TEST_COMMAND" ]; then
+          cd "$FOUNDRY_MODULE_ROOT"
+          bash -lc "$TEST_COMMAND"
+        else
+          node ci_scripts/run-cypress.js
+        fi
 
     - name: Upload Cypress screenshots on failure
       if: failure()

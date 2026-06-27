@@ -413,12 +413,19 @@ async function main() {
   }
 
   try {
-    const loaderPath = path.join(MODULE_ROOT, 'cypress', 'load-repo-env.js')
-    const { loadRepoEnv } = await import(pathToFileURL(loaderPath).href)
-    const host = loadRepoEnv().FOUNDRY_USERDATA_HOST
-    if (host && path.resolve(host) !== resolvedUserData) {
-      console.error('Mismatch: fvtt.config.js userDataPath !== .env FOUNDRY_USERDATA_HOST')
-      process.exit(1)
+    const actionPath = process.env.FOUNDRY_ACTION_PATH
+    const loaderCandidates = [
+      actionPath ? path.join(actionPath, 'cypress', 'load-repo-env.js') : null,
+      path.join(MODULE_ROOT, 'cypress', 'load-repo-env.js')
+    ].filter((p) => p && fs.existsSync(p))
+    for (const loaderPath of loaderCandidates) {
+      const { loadRepoEnv } = await import(pathToFileURL(loaderPath).href)
+      const host = loadRepoEnv().FOUNDRY_USERDATA_HOST
+      if (host && path.resolve(host) !== resolvedUserData) {
+        console.error('Mismatch: fvtt.config.js userDataPath !== .env FOUNDRY_USERDATA_HOST')
+        process.exit(1)
+      }
+      break
     }
   } catch {
     //

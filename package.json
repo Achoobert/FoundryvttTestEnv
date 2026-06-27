@@ -3,7 +3,14 @@
   "private": true,
   "type": "module",
   "description": "Composite GitHub Action for Foundry VTT module E2E",
+  "scripts": {
+    "test:ci": "node ci_scripts/run-cypress.js"
+  },
   "dependencies": {
     "classic-level": "^3.0.0"
+  },
+  "devDependencies": {
+    "cypress": "^15.17.0",
+    "cypress-if": "^1.13.2"
   }
 }

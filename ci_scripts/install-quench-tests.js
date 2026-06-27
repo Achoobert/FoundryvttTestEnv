@@ -13,20 +13,7 @@
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { loadModuleFvttConfig, MODULE_ROOT, resolveUserDataPath } from './fvtt-paths.js'
-
-const ACTION_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-
-function copyFoundryCypressTemplate (quenchRoot) {
-  const src = path.join(ACTION_ROOT, 'templates', 'foundry-cypress.js')
-  if (!fs.existsSync(src)) {
-    throw new Error(`foundry-cypress template missing: ${src}`)
-  }
-  const dest = path.join(quenchRoot, 'foundry-cypress.js')
-  fs.copyFileSync(src, dest)
-  console.log('Copied foundry-cypress.js to', dest)
-}
 
 function writeQuenchFvttConfig(quenchRoot, userDataPath, baseURL) {
   const out = `/** Generated for Quench webpack build */\nconst developmentOptions = {\n  userDataPath: '${userDataPath.replace(/'/g, "\\'")}',\n  baseURL: '${baseURL.replace(/'/g, "\\'")}'\n}\n\nexport default developmentOptions\n`
@@ -90,7 +77,6 @@ async function main() {
 
   const baseURL = developmentOptions.baseURL ?? 'http://localhost:30000'
   writeQuenchFvttConfig(quenchRoot, userDataPath, baseURL)
-  copyFoundryCypressTemplate(quenchRoot)
 
   const buildCmd = process.env.FOUNDRY_QUENCH_BUILD_COMMAND?.trim()
   if (buildCmd) {
