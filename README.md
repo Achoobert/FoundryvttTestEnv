@@ -39,8 +39,11 @@ If missing, the action synthesizes config from inputs (`foundry_world`, derived 
 Local directory with `module/module.json` and a webpack (or other) build. The action:
 
 1. Writes `fvtt.config.js` in that folder with `userDataPath` pointing at workspace `foundrydata/`.
-2. Runs `quench_build_command` or `npm --prefix <path> run build`.
-3. Ensures output lives under `foundrydata/Data/modules/<tests-module-id>`.
+2. Copies `templates/foundry-cypress.js` to `<path>/foundry-cypress.js` (Chrome swiftshader WebGL for headless CI).
+3. Runs `quench_build_command` or `npm --prefix <path> run build`.
+4. Ensures output lives under `foundrydata/Data/modules/<tests-module-id>`.
+
+Consumer `cypress.config.ci.js` should `import { defineFoundryConfig } from './foundry-cypress.js'` and extend it.
 
 **TODO:** support `quench_tests_path` as a git repository URL (clone + build).
 
