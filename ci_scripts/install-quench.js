@@ -112,6 +112,18 @@ function readInstalledManifest(destDir, manifestFileName) {
 async function ensureTestSystem(systemsRoot, options) {
   const manifestUrl = options.testSystemManifestUrl ?? DEFAULT_TEST_SYSTEM_MANIFEST
 
+  if (manifestUrl === 'local') {
+    const localDir = path.join(systemsRoot, 'deltagreen')
+    const existing = readInstalledManifest(localDir, 'system.json')
+    if (!existing) {
+      throw new Error(
+        `test_system_manifest_url is local but no system at ${localDir} — run build_script first`
+      )
+    }
+    console.log(`Using staged test system at ${localDir} (id=${existing.id})`)
+    return existing
+  }
+
   let manifest
   try {
     manifest = await fetchJson(manifestUrl)

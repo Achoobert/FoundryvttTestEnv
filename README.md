@@ -48,6 +48,10 @@ Local directory with `module/module.json` and a webpack (or other) build. The ac
 
 The action does **not** build your primary module. Use `build_script` / pre-steps so `foundrydata/Data/modules/<your-module-id>` exists before Cypress runs.
 
+### `test_system_manifest_url: local`
+
+When testing a **game system** from the same repo (not a release zip), stage `foundrydata/Data/systems/deltagreen/` in `build_script`, then pass `test_system_manifest_url: local` so install-quench skips downloading the default Delta Green release manifest.
+
 ## Layout
 
 - `action.yml` — composite steps
