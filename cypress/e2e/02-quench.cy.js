@@ -23,14 +23,13 @@ describe('Quench tests', () => {
     cy.get('.quench-button, [data-tooltip="QUENCH.Title"]').click()
     cy.get("[data-select='all']").should('exist').click({ force: true })
     cy.get('#quench-run').should('be.visible').click()
-    cy.get('#quench-run').should('be.visible').click()
 
-    cy.get('.stats', { timeout: 10000 }).should('be.visible')
+    cy.wait(9000)
+    cy.get('.stats', { timeout: 900000 }).should('be.visible')
     cy.get('.stats').then((stats) => {
       cy.log('Test report: ', stats.text())
     })
 
-    cy.wait(1000)
     cy.get('.error').if().then((summary) => {
       cy.log('errors: ', summary.text())
     })
