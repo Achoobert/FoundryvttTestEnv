@@ -24,7 +24,7 @@ describe('Quench tests', () => {
     cy.get("[data-select='all']").should('exist').click({ force: true })
     cy.get('#quench-run').should('be.visible').click()
 
-    cy.get('.stats', { timeout: 300000 }).should('be.visible')
+    cy.get('.stats', { timeout: 100000 }).should('be.visible')
     cy.get('.stats').then((stats) => {
       cy.log('Test report: ', stats.text())
     })
