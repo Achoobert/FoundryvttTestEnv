@@ -1,0 +1,9 @@
+{
+  "name": "foundryvtt-test-env",
+  "private": true,
+  "type": "module",
+  "description": "Composite GitHub Action for Foundry VTT module E2E",
+  "dependencies": {
+    "classic-level": "^3.0.0"
+  }
+}

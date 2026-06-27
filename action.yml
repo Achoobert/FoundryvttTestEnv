@@ -1,0 +1,263 @@
+name: Foundry VTT E2E test runner
+description: Docker Foundry + Quench + Cypress against the calling repository workspace
+
+inputs:
+  foundry_version:
+    description: Foundry core build version
+    required: true
+  foundry_world:
+    description: Test world folder id / title
+    required: true
+  foundry_username:
+    description: Foundry account username (pass from secrets)
+    required: true
+  foundry_password:
+    description: Foundry account password (pass from secrets)
+    required: true
+  foundry_admin_key:
+    description: Foundry admin password (pass from secrets)
+    required: true
+  pre_build_script:
+    description: Shell command before Foundry boot; empty to skip
+    required: false
+    default: ''
+  build_script:
+    description: Shell command to build module; empty to skip
+    required: false
+    default: ''
+  test_command:
+    description: Cypress command
+    required: false
+    default: npm run test:ci
+  cypress_install_command:
+    description: Install Cypress binary; empty to skip
+    required: false
+    default: ''
+  quench_tests_path:
+    description: Local path to Quench test package (e.g. ./quench). TODO: git repo URL
+    required: false
+    default: ''
+  quench_build_command:
+    description: Build command for quench_tests_path; default npm --prefix <path> run build
+    required: false
+    default: ''
+  test_module_ids:
+    description: Comma-separated module ids to enable; empty = derive quench + module.json ids
+    required: false
+    default: ''
+  test_system_manifest_url:
+    description: Game system manifest URL for test world
+    required: false
+    default: https://github.com/deltagreen-foundryvtt/delta-green-foundry-vtt-system/releases/download/v1.7.0/system.json
+  quench_manifest_url:
+    description: Quench module manifest URL
+    required: false
+    default: https://github.com/Ethaks/FVTT-Quench/releases/download/v0.10.0/module.json
+  fvtt_config_path:
+    description: Optional fvtt config example path in consumer repo
+    required: false
+    default: fvtt.config.example.js
+  container_name:
+    description: Docker container name; empty = foundry-<foundry_world>
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Install action dependencies
+      shell: bash
+      run: npm install --omit=dev
+      working-directory: ${{ github.action_path }}
+
+    - name: Stage Docker compose
+      shell: bash
+      run: |
+        rm -rf .foundry-docker
+        mkdir -p .foundry-docker
+        cp -R "${{ github.action_path }}/docker/." .foundry-docker/
+
+    - name: Pre-build
+      if: inputs.pre_build_script != ''
+      shell: bash
+      run: ${{ inputs.pre_build_script }}
+
+    - name: Build module
+      if: inputs.build_script != ''
+      shell: bash
+      run: ${{ inputs.build_script }}
+
+    - name: Write CI config
+      shell: bash
+      env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_USERDATA_HOST: ${{ github.workspace }}/foundrydata
+        FOUNDRY_WORLD: ${{ inputs.foundry_world }}
+        FOUNDRY_VERSION: ${{ inputs.foundry_version }}
+        FOUNDRY_CORE_VERSION: ${{ inputs.foundry_version }}
+        FOUNDRY_FVTT_CONFIG_PATH: ${{ inputs.fvtt_config_path }}
+        FOUNDRY_TEST_MODULE_IDS: ${{ inputs.test_module_ids }}
+        FOUNDRY_QUENCH_TESTS_PATH: ${{ inputs.quench_tests_path }}
+        FOUNDRY_QUENCH_MANIFEST_URL: ${{ inputs.quench_manifest_url }}
+        FOUNDRY_TEST_SYSTEM_MANIFEST_URL: ${{ inputs.test_system_manifest_url }}
+        FOUNDRY_CONTAINER_NAME: ${{ inputs.container_name }}
+      run: |
+        export NODE_PATH="${{ github.action_path }}/node_modules"
+        node "${{ github.action_path }}/ci_scripts/write-ci-config.js"
+
+    - name: Load container name from .env
+      shell: bash
+      run: |
+        if [ -f .env ]; then
+          echo "FOUNDRY_CONTAINER_NAME=$(grep '^FOUNDRY_CONTAINER_NAME=' .env | cut -d= -f2-)" >> "$GITHUB_ENV"
+        fi
+
+    - name: Restore Foundry distribution cache
+      uses: actions/cache/restore@v6
+      id: foundry-cache-restore
+      with:
+        path: |
+          .foundry-docker/container_cache
+          foundrydata/resources
+        key: foundry-dist-${{ inputs.foundry_version }}-${{ hashFiles('.foundry-docker/docker-compose.yml') }}
+        restore-keys: |
+          foundry-dist-${{ inputs.foundry_version }}-
+
+    - name: Restore Quench and test system cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          foundrydata/Data/modules/quench
+          foundrydata/Data/systems/deltagreen
+        key: e2e-deps-${{ hashFiles(inputs.fvtt_config_path, 'module.json') }}
+
+    - name: Restore userdata ownership for host (install-quench)
+      shell: bash
+      run: sudo chown -R "$(id -u):$(id -g)" foundrydata
+
+    - name: Install Quench and test world (pre-Docker)
+      shell: bash
+      env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_CORE_VERSION: ${{ inputs.foundry_version }}
+      run: |
+        export NODE_PATH="${{ github.action_path }}/node_modules"
+        node "${{ github.action_path }}/ci_scripts/install-quench.js"
+
+    - name: Build and install Quench tests package
+      if: inputs.quench_tests_path != ''
+      shell: bash
+      env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_QUENCH_TESTS_PATH: ${{ inputs.quench_tests_path }}
+        FOUNDRY_QUENCH_BUILD_COMMAND: ${{ inputs.quench_build_command }}
+      run: |
+        export NODE_PATH="${{ github.action_path }}/node_modules"
+        node "${{ github.action_path }}/ci_scripts/install-quench-tests.js"
+
+    - name: Fix userdata ownership for felddy (uid 1000)
+      shell: bash
+      run: |
+        mkdir -p foundrydata .foundry-docker/secret .foundry-docker/container_cache
+        sudo chown -R 1000:1000 foundrydata .foundry-docker/secret .foundry-docker/container_cache
+
+    - name: Start Foundry container
+      shell: bash
+      env:
+        FOUNDRY_USERNAME: ${{ inputs.foundry_username }}
+        FOUNDRY_PASSWORD: ${{ inputs.foundry_password }}
+        FOUNDRY_ADMIN_KEY: ${{ inputs.foundry_admin_key }}
+      run: |
+        docker compose \
+          --project-directory .foundry-docker \
+          --env-file .env \
+          up -d --force-recreate
+
+    - name: Wait for Foundry (first boot)
+      shell: bash
+      env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_WAIT_MS: '600000'
+      run: |
+        export NODE_PATH="${{ github.action_path }}/node_modules"
+        node "${{ github.action_path }}/ci_scripts/wait-for-foundry.js"
+
+    - name: Save Foundry distribution cache
+      if: success()
+      uses: actions/cache/save@v6
+      with:
+        path: |
+          .foundry-docker/container_cache
+          foundrydata/resources
+        key: ${{ steps.foundry-cache-restore.outputs.cache-primary-key }}
+
+    - name: Restore userdata ownership for host (install-quench)
+      shell: bash
+      run: sudo chown -R "$(id -u):$(id -g)" foundrydata
+
+    - name: Install Quench and test world (post-Docker)
+      shell: bash
+      env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_CORE_VERSION: ${{ inputs.foundry_version }}
+      run: |
+        export NODE_PATH="${{ github.action_path }}/node_modules"
+        node "${{ github.action_path }}/ci_scripts/install-quench.js"
+
+    - name: Build and install Quench tests package (post-Docker)
+      if: inputs.quench_tests_path != ''
+      shell: bash
+      env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_QUENCH_TESTS_PATH: ${{ inputs.quench_tests_path }}
+        FOUNDRY_QUENCH_BUILD_COMMAND: ${{ inputs.quench_build_command }}
+      run: |
+        export NODE_PATH="${{ github.action_path }}/node_modules"
+        node "${{ github.action_path }}/ci_scripts/install-quench-tests.js"
+
+    - name: Fix userdata ownership for felddy (uid 1000)
+      shell: bash
+      run: |
+        mkdir -p foundrydata .foundry-docker/secret .foundry-docker/container_cache
+        sudo chown -R 1000:1000 foundrydata .foundry-docker/secret .foundry-docker/container_cache
+
+    - name: Restart Foundry for world module list
+      shell: bash
+      run: docker restart "$FOUNDRY_CONTAINER_NAME"
+
+    - name: Wait for Foundry (after restart)
+      shell: bash
+      env:
+        FOUNDRY_MODULE_ROOT: ${{ github.workspace }}
+        FOUNDRY_WAIT_MS: '600000'
+      run: |
+        export NODE_PATH="${{ github.action_path }}/node_modules"
+        node "${{ github.action_path }}/ci_scripts/wait-for-foundry.js"
+
+    - name: Install Cypress binary
+      if: inputs.cypress_install_command != ''
+      shell: bash
+      run: ${{ inputs.cypress_install_command }}
+
+    - name: Install Chrome
+      uses: browser-actions/setup-chrome@v2
+
+    - name: Run Cypress E2E
+      shell: bash
+      env:
+        FOUNDRY_ADMIN_KEY: ${{ inputs.foundry_admin_key }}
+        FOUNDRY_PASSWORD: ${{ inputs.foundry_password }}
+        ADMIN_PASSWORD: ${{ inputs.foundry_admin_key }}
+      run: ${{ inputs.test_command }}
+
+    - name: Upload Cypress screenshots on failure
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: cypress-screenshots
+        path: cypress/screenshots
+        if-no-files-found: ignore
+
+branding:
+  icon: package
+  color: blue

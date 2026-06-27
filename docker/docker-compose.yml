@@ -1,0 +1,29 @@
+# Foundry V14 test container — userdata bind-mount from consumer .env
+
+services:
+  foundry_test:
+    image: felddy/foundryvtt:14
+    container_name: ${FOUNDRY_CONTAINER_NAME:-foundry-vtt-test}
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${FOUNDRY_USERDATA_HOST}
+        target: /data
+      - type: bind
+        source: ${FOUNDRY_CONFIG_HOST:-./secret}
+        target: /data/Config
+      - type: bind
+        source: ./container_cache
+        target: /container_cache
+    environment:
+      - FOUNDRY_WORLD=${FOUNDRY_WORLD}
+      - FOUNDRY_USERNAME=${FOUNDRY_USERNAME}
+      - FOUNDRY_PASSWORD=${FOUNDRY_PASSWORD}
+      - FOUNDRY_ADMIN_KEY=${FOUNDRY_ADMIN_KEY}
+      - CONTAINER_CACHE=/container_cache
+      - FOUNDRY_VERSION=${FOUNDRY_VERSION:-14.364}
+      - FOUNDRY_HOT_RELOAD=true
+      - FOUNDRY_TELEMETRY=true
+      - FOUNDRY_IP_DISCOVERY=false
+    ports:
+      - '30000:30000'
