@@ -317,6 +317,21 @@ function findWorldJsonPath(worldsRoot, testWorldName) {
   return null
 }
 
+/** Authoritative system version = the system.json Foundry will actually load. */
+function readInstalledSystemVersion(worldsRoot, systemId, fallback) {
+  try {
+    const systemsRoot = path.join(path.dirname(worldsRoot), 'systems')
+    const installed = path.join(systemsRoot, systemId, 'system.json')
+    if (fs.existsSync(installed)) {
+      const version = JSON.parse(fs.readFileSync(installed, 'utf8')).version
+      if (version) return version
+    }
+  } catch {
+    //
+  }
+  return fallback
+}
+
 function createTestWorld(worldsRoot, title, systemManifest) {
   const worldId = worldIdFromTitle(title)
   const worldDir = path.join(worldsRoot, worldId)
@@ -329,11 +344,17 @@ function createTestWorld(worldsRoot, title, systemManifest) {
     fs.mkdirSync(path.join(worldDir, 'data', sub), { recursive: true })
   }
 
+  const systemVersion = readInstalledSystemVersion(
+    worldsRoot,
+    systemManifest.id,
+    systemManifest.version
+  )
+
   const world = {
     title,
     id: worldId,
     system: systemManifest.id,
-    systemVersion: systemManifest.version,
+    systemVersion,
     coreVersion: FOUNDRY_CORE_VERSION,
     compatibility: { minimum: '14', verified: '14' },
     playtime: 0,
