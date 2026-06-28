@@ -206,11 +206,13 @@ function syncWorldCoreVersion(world) {
 const MODULE_CONFIGURATION_KEY = 'core.moduleConfiguration'
 
 function generateSettingId() {
-  return crypto
-    .randomBytes(12)
-    .toString('base64')
-    .replace(/[\\+=/]/g, '')
-    .substring(0, 16)
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let id = ''
+  while (id.length < 16) {
+    id += chars[crypto.randomInt(chars.length)]
+  }
+  return id
 }
 
 function assertSettingsDbNotLocked(settingsDir) {
