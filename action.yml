@@ -64,6 +64,10 @@ inputs:
     description: Docker container name; empty = foundry-<foundry_world>
     required: false
     default: ''
+  quench_stats_timeout:
+    description: Cypress wait (ms) for Quench .stats summary after Run All; maps to CYPRESS_QUENCH_STATS_TIMEOUT
+    required: false
+    default: '900000'
 
 runs:
   using: composite
@@ -275,6 +279,7 @@ runs:
         FOUNDRY_PASSWORD: ${{ inputs.foundry_password }}
         ADMIN_PASSWORD: ${{ inputs.foundry_admin_key }}
         TEST_COMMAND: ${{ inputs.test_command }}
+        CYPRESS_QUENCH_STATS_TIMEOUT: ${{ inputs.quench_stats_timeout }}
       run: |
         if [ -n "$TEST_COMMAND" ]; then
           cd "$FOUNDRY_MODULE_ROOT"

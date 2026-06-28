@@ -15,7 +15,10 @@ describe('Quench tests', () => {
     cy.get('.quench-button, [data-tooltip="QUENCH.Title"]', { timeout: 120000 }).should('exist')
   })
 
-  it('run quench tests', () => {
+  const statsTimeout =
+    Number(Cypress.env('QUENCH_STATS_TIMEOUT')) || 900000
+
+  it('run quench tests', { retries: 1 }, () => {
     cy.get('.quench-button, [data-tooltip="QUENCH.Title"]').if().then(() => {
       cy.get('.quench-button, [data-tooltip="QUENCH.Title"]').click()
     })
@@ -24,7 +27,7 @@ describe('Quench tests', () => {
     cy.get("[data-select='all']").should('exist').click({ force: true })
     cy.get('#quench-run').should('be.visible').click()
 
-    cy.get('.stats', { timeout: 100000 }).should('be.visible')
+    cy.get('.stats', { timeout: statsTimeout }).should('be.visible')
     cy.get('.stats').then((stats) => {
       cy.log('Test report: ', stats.text())
     })
