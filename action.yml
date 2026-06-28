@@ -291,6 +291,23 @@ runs:
         path: cypress/screenshots
         if-no-files-found: ignore
 
+    - name: Dump Foundry container logs
+      if: always()
+      shell: bash
+      run: |
+        docker logs "$FOUNDRY_CONTAINER_NAME" > foundry-container.log 2>&1 || \
+          docker compose --project-directory .foundry-docker logs > foundry-container.log 2>&1 || true
+        echo "===== last 200 lines ====="
+        tail -n 200 foundry-container.log || true
+
+    - name: Upload Foundry container logs
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: foundry-container-logs
+        path: foundry-container.log
+        if-no-files-found: ignore
+
 branding:
   icon: package
   color: blue

@@ -6,8 +6,10 @@
 #      consumers can pin `uses: Achoobert/FoundryvttTestEnv@0`.
 #   2. Create or update a GitHub Release for the exact tag.
 #
-# Push an exact tag to cut a release:
+# Push an exact tag to cut a release manually:
 #   git tag 0.0.1 && git push origin 0.0.1
+# Automatic releases from main use .github/workflows/auto-version.yml instead;
+# tags pushed by GITHUB_TOKEN there do not retrigger this workflow.
 # Consumers may then use @0.0.1 (exact) or @0 (latest 0.x).
 
 name: Release
