@@ -109,30 +109,62 @@ function readInstalledManifest(destDir, manifestFileName) {
   return JSON.parse(fs.readFileSync(p, 'utf8'))
 }
 
+/**
+ * Find systems staged under systemsRoot by build_script.
+ * Returns an array of { dir, manifest } for every subdirectory containing a system.json.
+ */
+function discoverStagedSystems(systemsRoot) {
+  if (!fs.existsSync(systemsRoot)) return []
+  return fs
+    .readdirSync(systemsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(systemsRoot, entry.name))
+    .map((dir) => ({ dir, manifest: readInstalledManifest(dir, 'system.json') }))
+    .filter((candidate) => candidate.manifest)
+}
+
+/**
+ * Resolve the single system staged locally by build_script (system-agnostic).
+ * Throws when none or more than one is present.
+ */
+function resolveStagedSystem(systemsRoot, context) {
+  const staged = discoverStagedSystems(systemsRoot)
+  if (staged.length === 0) {
+    throw new Error(
+      `${context} but no built system found under ${systemsRoot} — run build_script first`
+    )
+  }
+  if (staged.length > 1) {
+    const ids = staged.map((s) => s.manifest.id).join(', ')
+    throw new Error(
+      `${context} but multiple systems found under ${systemsRoot} (${ids}) — set test_system_manifest_url to a manifest URL to disambiguate`
+    )
+  }
+  return staged[0]
+}
+
 async function ensureTestSystem(systemsRoot, options) {
   const manifestUrl = options.testSystemManifestUrl ?? DEFAULT_TEST_SYSTEM_MANIFEST
 
   if (manifestUrl === 'local') {
-    const localDir = path.join(systemsRoot, 'deltagreen')
-    const existing = readInstalledManifest(localDir, 'system.json')
-    if (!existing) {
-      throw new Error(
-        `test_system_manifest_url is local but no system at ${localDir} — run build_script first`
-      )
-    }
-    console.log(`Using staged test system at ${localDir} (id=${existing.id})`)
-    return existing
+    const { dir, manifest } = resolveStagedSystem(
+      systemsRoot,
+      'test_system_manifest_url is local'
+    )
+    console.log(`Using staged test system at ${dir} (id=${manifest.id})`)
+    return manifest
   }
 
   let manifest
   try {
     manifest = await fetchJson(manifestUrl)
   } catch (err) {
-    const fallbackDir = path.join(systemsRoot, 'deltagreen')
-    const existing = readInstalledManifest(fallbackDir, 'system.json')
-    if (existing) {
-      console.warn(`Could not fetch test system manifest (${err.message}); using ${fallbackDir}`)
-      return existing
+    const staged = discoverStagedSystems(systemsRoot)
+    if (staged.length === 1) {
+      console.warn(
+        `Could not fetch test system manifest (${err.message}); using ${staged[0].dir}`
+      )
+      return staged[0].manifest
     }
     throw err
   }

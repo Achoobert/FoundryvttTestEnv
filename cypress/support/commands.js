@@ -67,11 +67,8 @@ Cypress.Commands.add('closeTourOverlay', () => {
   cy.get('.tour .header-button.close, [data-action="closeTour"]', { timeout: 5000 }).if().click({
     force: true
   })
-  // class="step-title noborder"
-  //Backups Overview
-  // class="tour-overlay"
-  cy.get('.step-title.noborder', { timeout: 10000 }).should('not.exist')
-  cy.get('.tour-overlay', { timeout: 10000 }).should('not.exist')
+  cy.get('.step-title.noborder', { timeout: 10000 }).if().should('not.exist')
+  cy.get('.tour-overlay', { timeout: 10000 }).if().should('not.exist')
 })
 
 Cypress.Commands.add('confirmWorldMigrationIfShown', () => {
@@ -79,23 +76,26 @@ Cypress.Commands.add('confirmWorldMigrationIfShown', () => {
 })
 
 Cypress.Commands.add('launchTestWorldFromSetup', (worldTitle) => {
+  cy.log('launchTestWorldFromSetup')
   const name = worldTitle ?? Cypress.env('FOUNDRY_WORLD') ?? 'modern-names-test'
   cy.url().then((url) => {
     if (url.includes('/join')) {
       cy.log('World already running (join page) — skip setup launch')
       return
+    } else {
+      if (url.includes('/game')) {
+        cy.visit('/game')
+        return
+      }
+      cy.get('body').contains(name).should('be.visible').rightclick({ force: true })
+      cy.get('body').contains('Launch').should('be.visible').click({ force: true })
+      cy.confirmWorldMigrationIfShown()
+      cy.get('.progress-bar', { timeout: 180000 }).should('not.exist') // this didnt' go away
+      cy.closeTourOverlay()
+      // expect the 
+      cy.get('select[name="userid"] option', { timeout: 180000 }).should('exist')
+      cy.get('select[name="userid"] option').should('have.length.at.least', 1)
     }
-    if (url.includes('/game')) {
-      return
-    }
-    cy.get('body').contains(name).should('be.visible').rightclick({ force: true })
-    cy.get('body').contains('Launch').should('be.visible').click({ force: true })
-    cy.confirmWorldMigrationIfShown()
-    cy.get('.progress-bar', { timeout: 180000 }).should('not.exist')
-    cy.closeTourOverlay()
-    // expect the 
-    cy.get('select[name="userid"] option', { timeout: 180000 }).should('exist')
-    cy.get('select[name="userid"] option').should('have.length.at.least', 1)
   })
 })
 // class="world-select"
