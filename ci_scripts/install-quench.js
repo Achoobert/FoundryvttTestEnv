@@ -12,7 +12,8 @@ import { loadModuleFvttConfig, MODULE_ROOT, resolveUserDataPath } from './fvtt-p
 import { loadModuleDotEnv } from './module-dotenv.js'
 
 const DEFAULT_QUENCH_MANIFEST =
-  'https://github.com/Ethaks/FVTT-Quench/releases/download/v0.10.0/module.json'
+  'https://github.com/SobranDM/FVTT-Quench/releases/download/v0.11.2/module.json'
+// 'https://github.com/Ethaks/FVTT-Quench/releases/download/v0.10.0/module.json'
 
 const DEFAULT_TEST_SYSTEM_MANIFEST =
   'https://github.com/deltagreen-foundryvtt/delta-green-foundry-vtt-system/releases/download/v1.7.0/system.json'
